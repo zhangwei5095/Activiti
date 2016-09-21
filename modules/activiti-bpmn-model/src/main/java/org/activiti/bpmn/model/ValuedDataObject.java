@@ -21,16 +21,21 @@ public abstract class ValuedDataObject extends DataObject {
     if (otherElement.getValue() != null) {
       setValue(otherElement.getValue());
     }
-    setValue(otherElement.getValue());
   }
-  
-  public boolean equals(ValuedDataObject otherObject) {
-    
-    if (otherObject.getItemSubjectRef().getStructureRef() != this.itemSubjectRef.getStructureRef()) return false;
-    if (otherObject.getId() != this.id) return false;
-    if (otherObject.getName() != this.name) return false;
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    ValuedDataObject otherObject = (ValuedDataObject) o;
+
+    if (!otherObject.getItemSubjectRef().getStructureRef().equals(this.itemSubjectRef.getStructureRef())) return false;
+    if (!otherObject.getId().equals(this.id)) return false;
+    if (!otherObject.getName().equals(this.name)) return false;
     if (!otherObject.getValue().equals(this.value.toString())) return false;
-    
+
     return true;
   }
+
 }

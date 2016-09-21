@@ -12,8 +12,10 @@
  */
 package org.activiti.engine.impl.interceptor;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 import org.activiti.engine.ActivitiException;
@@ -31,6 +33,7 @@ import org.activiti.engine.impl.persistence.entity.AttachmentEntityManager;
 import org.activiti.engine.impl.persistence.entity.ByteArrayEntityManager;
 import org.activiti.engine.impl.persistence.entity.CommentEntityManager;
 import org.activiti.engine.impl.persistence.entity.DeploymentEntityManager;
+import org.activiti.engine.impl.persistence.entity.EventLogEntryEntityManager;
 import org.activiti.engine.impl.persistence.entity.EventSubscriptionEntityManager;
 import org.activiti.engine.impl.persistence.entity.ExecutionEntityManager;
 import org.activiti.engine.impl.persistence.entity.GroupIdentityManager;
@@ -46,6 +49,7 @@ import org.activiti.engine.impl.persistence.entity.JobEntityManager;
 import org.activiti.engine.impl.persistence.entity.MembershipIdentityManager;
 import org.activiti.engine.impl.persistence.entity.ModelEntityManager;
 import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntityManager;
+import org.activiti.engine.impl.persistence.entity.ProcessDefinitionInfoEntityManager;
 import org.activiti.engine.impl.persistence.entity.PropertyEntityManager;
 import org.activiti.engine.impl.persistence.entity.ResourceEntityManager;
 import org.activiti.engine.impl.persistence.entity.TableDataManager;
@@ -61,6 +65,7 @@ import org.slf4j.LoggerFactory;
 /**
  * @author Tom Baeyens
  * @author Agim Emruli
+ * @author Joram Barrez
  */
 public class CommandContext {
 
@@ -74,6 +79,8 @@ public class CommandContext {
   protected LinkedList<AtomicOperation> nextOperations = new LinkedList<AtomicOperation>();
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
   protected FailedJobCommandFactory failedJobCommandFactory;
+	protected List<CommandContextCloseListener> closeListeners;
+  protected Map<String, Object> attributes; // General-purpose storing of anything during the lifetime of a command context
 
   
   public void performOperation(AtomicOperation executionOperation, InterpretableExecution execution) {
@@ -109,14 +116,23 @@ public class CommandContext {
   }
 
   public void close() {
-    // the intention of this method is that all resources are closed properly,
-    // even
+    // the intention of this method is that all resources are closed properly, even
     // if exceptions occur in close or flush methods of the sessions or the
     // transaction context.
 
     try {
       try {
         try {
+        	
+        	if (exception == null && closeListeners != null) {
+	        	try {
+	        		for (CommandContextCloseListener listener : closeListeners) {
+	        			listener.closing(this);
+	        		}
+	        	} catch (Throwable exception) {
+	        		exception(exception);
+	        	}
+        	}
 
           if (exception == null) {
             flushSessions();
@@ -125,7 +141,7 @@ public class CommandContext {
         } catch (Throwable exception) {
           exception(exception);
         } finally {
-
+        	
           try {
             if (exception == null) {
               transactionContext.commit();
@@ -133,6 +149,16 @@ public class CommandContext {
           } catch (Throwable exception) {
             exception(exception);
           }
+          
+        	if (exception == null && closeListeners != null) {
+	        	try {
+	        		for (CommandContextCloseListener listener : closeListeners) {
+	        			listener.closed(this);
+	        		}
+	        	} catch (Throwable exception) {
+	        		exception(exception);
+	        	}
+        	}
 
           if (exception != null) {
             if (exception instanceof JobNotFoundException || exception instanceof ActivitiTaskAlreadyClaimedException) {
@@ -142,7 +168,7 @@ public class CommandContext {
               // reduce log level, as normally we're not interested in logging this exception
               log.debug("Optimistic locking exception : " + exception);
             } else {
-              log.debug("Error while closing command context", exception);
+              log.error("Error while closing command context", exception);
             }
 
             transactionContext.rollback();
@@ -168,6 +194,17 @@ public class CommandContext {
         throw new ActivitiException("exception while executing command " + command, exception);
       }
     }
+  }
+  
+  public void addCloseListener(CommandContextCloseListener commandContextCloseListener) {
+  	if (closeListeners == null) {
+  		closeListeners = new ArrayList<CommandContextCloseListener>(1);
+  	}
+  	closeListeners.add(commandContextCloseListener);
+  }
+  
+  public List<CommandContextCloseListener> getCloseListeners() {
+  	return closeListeners;
   }
  
   protected void flushSessions() {
@@ -196,6 +233,20 @@ public class CommandContext {
     	log.error("masked exception in command context. for root cause, see below as it will be rethrown later.", exception);    	
     	LogMDC.clear();
     }
+  }
+  
+  public void addAttribute(String key, Object value) {
+  	if (attributes == null) {
+  		attributes = new HashMap<String, Object>(1);
+  	}
+  	attributes.put(key, value);
+  }
+  
+  public Object getAttribute(String key) {
+  	if (attributes != null) {
+  		return attributes.get(key);
+  	}
+  	return null;
   }
 
   @SuppressWarnings({"unchecked"})
@@ -236,6 +287,10 @@ public class CommandContext {
   public ModelEntityManager getModelEntityManager() {
     return getSession(ModelEntityManager.class);
   }
+  
+  public ProcessDefinitionInfoEntityManager getProcessDefinitionInfoEntityManager() {
+    return getSession(ProcessDefinitionInfoEntityManager.class);
+  }
 
   public ExecutionEntityManager getExecutionEntityManager() {
     return getSession(ExecutionEntityManager.class);
@@ -275,6 +330,10 @@ public class CommandContext {
   
   public HistoricIdentityLinkEntityManager getHistoricIdentityLinkEntityManager() {
     return getSession(HistoricIdentityLinkEntityManager.class);
+  }
+  
+  public EventLogEntryEntityManager getEventLogEntryEntityManager() {
+  	return getSession(EventLogEntryEntityManager.class);
   }
   
   public JobEntityManager getJobEntityManager() {

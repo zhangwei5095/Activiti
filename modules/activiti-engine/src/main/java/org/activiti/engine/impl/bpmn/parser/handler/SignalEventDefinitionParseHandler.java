@@ -22,8 +22,6 @@ import org.activiti.bpmn.model.ThrowEvent;
 import org.activiti.engine.impl.bpmn.parser.BpmnParse;
 import org.activiti.engine.impl.bpmn.parser.EventSubscriptionDeclaration;
 import org.activiti.engine.impl.pvm.process.ActivityImpl;
-import org.apache.commons.lang3.StringUtils;
-
 
 /**
  * @author Joram Barrez
@@ -49,6 +47,8 @@ public class SignalEventDefinitionParseHandler extends AbstractBpmnParseHandler<
     
     ActivityImpl activity = bpmnParse.getCurrentActivity();
     if (bpmnParse.getCurrentFlowElement() instanceof StartEvent) {
+      
+      activity.setProperty("type", "signalStartEvent");
     
       EventSubscriptionDeclaration eventSubscriptionDeclaration = new EventSubscriptionDeclaration(signalDefinition.getSignalRef(), "signal");
       eventSubscriptionDeclaration.setActivityId(activity.getId());

@@ -15,18 +15,22 @@ package org.activiti.engine;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.activiti.engine.delegate.VariableScope;
 import org.activiti.engine.delegate.event.ActivitiEvent;
 import org.activiti.engine.delegate.event.ActivitiEventDispatcher;
 import org.activiti.engine.delegate.event.ActivitiEventListener;
 import org.activiti.engine.delegate.event.ActivitiEventType;
+import org.activiti.engine.impl.persistence.entity.VariableInstance;
 import org.activiti.engine.runtime.Execution;
 import org.activiti.engine.runtime.ExecutionQuery;
 import org.activiti.engine.runtime.NativeExecutionQuery;
 import org.activiti.engine.runtime.NativeProcessInstanceQuery;
 import org.activiti.engine.runtime.ProcessInstance;
+import org.activiti.engine.runtime.ProcessInstanceBuilder;
 import org.activiti.engine.runtime.ProcessInstanceQuery;
+import org.activiti.engine.task.Event;
 import org.activiti.engine.task.IdentityLink;
 import org.activiti.engine.task.IdentityLinkType;
 
@@ -59,12 +63,6 @@ public interface RuntimeService {
    * then be used to easily look up that process instance , see
    * {@link ProcessInstanceQuery#processInstanceBusinessKey(String)}. Providing
    * such a business key is definitely a best practice.
-   * 
-   * Note that a business key MUST be unique for the given process definition.
-   * Process instance from different process definition are allowed to have the
-   * same business key.
-   * 
-   * The combination of processdefinitionKey-businessKey must be unique.
    * 
    * @param processDefinitionKey
    *          key of process definition, cannot be null.
@@ -99,10 +97,6 @@ public interface RuntimeService {
    * then be used to easily look up that process instance , see
    * {@link ProcessInstanceQuery#processInstanceBusinessKey(String)}. Providing
    * such a business key is definitely a best practice.
-   * 
-   * Note that a business key MUST be unique for the given process definition.
-   * Process instance from different process definition are allowed to have the
-   * same business key.
    * 
    * The combination of processdefinitionKey-businessKey must be unique.
    * 
@@ -160,10 +154,6 @@ public interface RuntimeService {
    * {@link ProcessInstanceQuery#processInstanceBusinessKey(String)}. Providing
    * such a business key is definitely a best practice.
    * 
-   * Note that a business key MUST be unique for the given process definition.
-   * Process instance from different process definition are allowed to have the
-   * same business key.
-   * 
    * @param processDefinitionId
    *          the id of the process definition, cannot be null.
    * @param businessKey
@@ -197,10 +187,6 @@ public interface RuntimeService {
    * then be used to easily look up that process instance , see
    * {@link ProcessInstanceQuery#processInstanceBusinessKey(String)}. Providing
    * such a business key is definitely a best practice.
-   * 
-   * Note that a business key MUST be unique for the given process definition.
-   * Process instance from different process definition are allowed to have the
-   * same business key.
    * 
    * @param processDefinitionId
    *          the id of the process definition, cannot be null.
@@ -411,6 +397,66 @@ public interface RuntimeService {
    *           when the process instance doesn't exist.
    */
   void addUserIdentityLink(String processInstanceId, String userId, String identityLinkType);
+  
+  /**
+   * Involves a group with a process instance. The type of identityLink is defined by the
+   * given identityLink.
+   * @param processInstanceId id of the process instance, cannot be null.
+   * @param groupId id of the group to involve, cannot be null.
+   * @param identityLinkType type of identity, cannot be null (@see {@link IdentityLinkType}).
+   * @throws ActivitiObjectNotFoundException when the  process instance or group doesn't exist.
+   */
+  void addGroupIdentityLink(String processInstanceId, String groupId, String identityLinkType);
+  
+  /**
+   * Convenience shorthand for {@link #addUserIdentityLink(String, String, String)}; with type {@link IdentityLinkType#CANDIDATE}
+   * @param processInstanceId id of the process instance, cannot be null.
+   * @param userId id of the user to use as candidate, cannot be null.
+   * @throws ActivitiObjectNotFoundException when the task or user doesn't exist.
+   */
+  void addParticipantUser(String processInstanceId, String userId);
+  
+  /**
+   * Convenience shorthand for {@link #addGroupIdentityLink(String, String, String)}; with type {@link IdentityLinkType#CANDIDATE}
+   * @param processInstanceId id of the process instance, cannot be null.
+   * @param groupId id of the group to use as candidate, cannot be null.
+   * @throws ActivitiObjectNotFoundException when the task or group doesn't exist.
+   */
+  void addParticipantGroup(String processInstanceId, String groupId);
+  
+  /**
+   * Convenience shorthand for {@link #deleteUserIdentityLink(String, String, String)}; with type {@link IdentityLinkType#CANDIDATE}
+   * @param processInstanceId id of the process instance, cannot be null.
+   * @param userId id of the user to use as candidate, cannot be null.
+   * @throws ActivitiObjectNotFoundException when the task or user doesn't exist.
+   */
+  void deleteParticipantUser(String processInstanceId, String userId);
+  
+  /**
+   * Convenience shorthand for {@link #deleteGroupIdentityLink(String, String, String)}; with type {@link IdentityLinkType#CANDIDATE}
+   * @param processInstanceId id of the process instance, cannot be null.
+   * @param groupId id of the group to use as candidate, cannot be null.
+   * @throws ActivitiObjectNotFoundException when the task or group doesn't exist.
+   */
+  void deleteParticipantGroup(String processInstanceId, String groupId);
+  
+  /**
+   * Removes the association between a user and a process instance for the given identityLinkType.
+   * @param processInstanceId id of the process instance, cannot be null.
+   * @param userId id of the user involve, cannot be null.
+   * @param identityLinkType type of identityLink, cannot be null (@see {@link IdentityLinkType}).
+   * @throws ActivitiObjectNotFoundException when the task or user doesn't exist.
+   */
+  void deleteUserIdentityLink(String processInstanceId, String userId, String identityLinkType);
+  
+  /**
+   * Removes the association between a group and a process instance for the given identityLinkType.
+   * @param processInstanceId id of the process instance, cannot be null.
+   * @param groupId id of the group to involve, cannot be null.
+   * @param identityLinkType type of identity, cannot be null (@see {@link IdentityLinkType}).
+   * @throws ActivitiObjectNotFoundException when the task or group doesn't exist.
+   */
+  void deleteGroupIdentityLink(String processInstanceId, String groupId, String identityLinkType);
 
   /**
    * Retrieves the {@link IdentityLink}s associated with the given process
@@ -433,6 +479,42 @@ public interface RuntimeService {
    *           when no execution is found for the given executionId.
    */
   Map<String, Object> getVariables(String executionId);
+  
+  /**
+   * All variables visible from the given execution scope (including parent scopes).
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @return the variable instances or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstances(String executionId);
+
+  /**
+   * All variables visible from the given execution scope (including parent
+   * scopes).
+   * 
+   * @param executionIds
+   *          ids of execution, cannot be null.
+   * @return the variables.
+   */
+  List<VariableInstance> getVariableInstancesByExecutionIds(Set<String> executionIds);
+  
+  /**
+   * All variables visible from the given execution scope (including parent scopes).
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param locale
+   *          locale the variable name and description should be returned in (if available).
+   * @param withLocalizationFallback
+   *          When true localization will fallback to more general locales including the default locale of the JVM if the specified locale is not found.
+   * @return the variable instances or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstances(String executionId, String locale, boolean withLocalizationFallback);
 
   /**
    * All variable values that are defined in the execution scope, without taking
@@ -447,6 +529,34 @@ public interface RuntimeService {
    *           when no execution is found for the given executionId.
    */
   Map<String, Object> getVariablesLocal(String executionId);
+  
+  /**
+   * All variable values that are defined in the execution scope, without taking outer scopes into account. If you have many task local variables and you only need a few, consider using
+   * {@link #getVariableInstancesLocal(String, Collection)} for better performance.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @return the variables or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstancesLocal(String executionId);
+
+  /**
+   * All variable values that are defined in the execution scope, without taking outer scopes into account. If you have many task local variables and you only need a few, consider using
+   * {@link #getVariableInstancesLocal(String, Collection)} for better performance.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param locale
+   *          locale the variable name and description should be returned in (if available).
+   * @param withLocalizationFallback
+   *          When true localization will fallback to more general locales including the default locale of the JVM if the specified locale is not found. 
+   * @return the variables or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstancesLocal(String executionId, String locale, boolean withLocalizationFallback);
 
   /**
    * The variable values for all given variableNames, takes all variables into
@@ -462,6 +572,36 @@ public interface RuntimeService {
    *           when no execution is found for the given executionId.
    */
   Map<String, Object> getVariables(String executionId, Collection<String> variableNames);
+  
+  /**
+   * The variable values for all given variableNames, takes all variables into account which are visible from the given execution scope (including parent scopes).
+   * 
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableNames
+   *          the collection of variable names that should be retrieved. 
+   * @return the variables or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstances(String executionId, Collection<String> variableNames);
+
+  /**
+   * The variable values for all given variableNames, takes all variables into account which are visible from the given execution scope (including parent scopes).
+   * 
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableNames
+   *          the collection of variable names that should be retrieved.
+   * @param locale
+   *          locale the variable name and description should be returned in (if available).
+   * @param withLocalizationFallback
+   *          When true localization will fallback to more general locales including the default locale of the JVM if the specified locale is not found. 
+   * @return the variables or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstances(String executionId, Collection<String> variableNames, String locale, boolean withLocalizationFallback);
 
   /**
    * The variable values for the given variableNames only taking the given
@@ -476,6 +616,36 @@ public interface RuntimeService {
    *           when no execution is found for the given executionId.
    */
   Map<String, Object> getVariablesLocal(String executionId, Collection<String> variableNames);
+  
+  /**
+   * The variable values for the given variableNames only taking the given execution scope into account, not looking in outer scopes.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableNames
+   *          the collection of variable names that should be retrieved.
+   * @return the variables or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstancesLocal(String executionId, Collection<String> variableNames);
+
+  /**
+   * The variable values for the given variableNames only taking the given execution scope into account, not looking in outer scopes.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableNames
+   *          the collection of variable names that should be retrieved.
+   * @param locale
+   *          locale the variable name and description should be returned in (if available).
+   * @param withLocalizationFallback
+   *          When true localization will fallback to more general locales including the default locale of the JVM if the specified locale is not found. 
+   * @return the variables or an empty map if no such variables are found.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  Map<String, VariableInstance> getVariableInstancesLocal(String executionId, Collection<String> variableNames, String locale, boolean withLocalizationFallback);
 
   /**
    * The variable value. Searching for the variable is done in all scopes that
@@ -493,6 +663,58 @@ public interface RuntimeService {
    *           when no execution is found for the given executionId.
    */
   Object getVariable(String executionId, String variableName);
+  
+  /**
+   * The variable. Searching for the variable is done in all scopes that are visible to the given execution (including parent scopes). Returns null when no variable value is found with the given
+   * name or when the value is set to null.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableName
+   *          name of variable, cannot be null.
+   * @return the variable or null if the variable is undefined.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  VariableInstance getVariableInstance(String executionId, String variableName);
+
+  /**
+   * The variable. Searching for the variable is done in all scopes that are visible to the given execution (including parent scopes). Returns null when no variable value is found with the given
+   * name or when the value is set to null.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableName
+   *          name of variable, cannot be null.
+   * @param locale
+   *          locale the variable name and description should be returned in (if available).
+   * @param withLocalizationFallback
+   *          When true localization will fallback to more general locales including the default locale of the JVM if the specified locale is not found. 
+   * @return the variable or null if the variable is undefined.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  VariableInstance getVariableInstance(String executionId, String variableName, String locale, boolean withLocalizationFallback);
+
+  /**
+   * The variable value. Searching for the variable is done in all scopes that
+   * are visible to the given execution (including parent scopes). Returns null
+   * when no variable value is found with the given name or when the value is
+   * set to null. Throws ClassCastException when cannot cast variable to
+   * given class
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableName
+   *          name of variable, cannot be null.
+   * @param variableClass
+   *          name of variable, cannot be null.
+   * @return the variable value or null if the variable is undefined or the
+   *         value of the variable is null.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  <T> T getVariable(String executionId, String variableName, Class<T> variableClass);
 
   /**
    * Check whether or not this execution has variable set with the given name,
@@ -508,6 +730,46 @@ public interface RuntimeService {
    * null.
    */
   Object getVariableLocal(String executionId, String variableName);
+  
+  /**
+   * The variable for an execution. Returns the variable when it is set for the execution (and not searching parent scopes). Returns null when no variable is found with the given
+   * name or when the value is set to null.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableName
+   *          name of variable, cannot be null.
+   * @return the variable or null if the variable is undefined.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  VariableInstance getVariableInstanceLocal(String executionId, String variableName);
+
+  /**
+   * The variable for an execution. Returns the variable when it is set for the execution (and not searching parent scopes). Returns null when no variable is found with the given
+   * name or when the value is set to null.
+   *
+   * @param executionId
+   *          id of execution, cannot be null.
+   * @param variableName
+   *          name of variable, cannot be null.
+   * @param locale
+   *          locale the variable name and description should be returned in (if available).
+   * @param withLocalizationFallback
+   *          When true localization will fallback to more general locales including the default locale of the JVM if the specified locale is not found.
+   * @return the variable or null if the variable is undefined.
+   * @throws ActivitiObjectNotFoundException
+   *           when no execution is found for the given executionId.
+   */
+  VariableInstance getVariableInstanceLocal(String executionId, String variableName, String locale, boolean withLocalizationFallback);
+
+  /**
+   * The variable value for an execution. Returns the value casted to given class
+   * when the variable is set for the execution (and not searching parent scopes).
+   * Returns null when no variable value is found with the given name or when the
+   * value is set to null.
+   */
+  <T> T  getVariableLocal(String executionId, String variableName, Class<T> variableClass);
 
   /**
    * Check whether or not this execution has a local variable set with the given
@@ -923,5 +1185,11 @@ public interface RuntimeService {
    *    when the given process instance does not exist.
    */
   void setProcessInstanceName(String processInstanceId, String name);
+  
+  /** The all events related to the given Process Instance. */
+  List<Event> getProcessInstanceEvents(String processInstanceId);
+  
+  /**Create a ProcessInstanceBuilder*/
+  ProcessInstanceBuilder createProcessInstanceBuilder();
     
 }

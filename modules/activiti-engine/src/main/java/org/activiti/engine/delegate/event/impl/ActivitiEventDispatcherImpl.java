@@ -66,8 +66,7 @@ public class ActivitiEventDispatcherImpl implements ActivitiEventDispatcher {
 		}
 
 		// Check if a process context is active. If so, we also call the
-		// process-definition
-		// specific listeners (if any).
+		// process-definition specific listeners (if any).
 		if (Context.isExecutionContextActive()) {
 			ProcessDefinitionEntity definition = Context.getExecutionContext().getProcessDefinition();
 			if (definition != null) {
@@ -75,8 +74,7 @@ public class ActivitiEventDispatcherImpl implements ActivitiEventDispatcher {
 			}
 		} else {
 			// Try getting hold of the Process definition, based on the process
-			// definition-key, if a
-			// context is active
+			// definition-key, if a context is active
 			CommandContext commandContext = Context.getCommandContext();
 			if (commandContext != null) {
 				ProcessDefinitionEntity processDefinition = extractProcessDefinitionEntityFromEvent(event);

@@ -23,6 +23,7 @@ import org.activiti.engine.repository.ProcessDefinition;
  * @author Tom Baeyens
  * @author Joram Barrez
  * @author Daniel Meyer
+ * @author Tijs Rademakers
  */
 public interface ProcessInstance extends Execution {
   
@@ -30,6 +31,26 @@ public interface ProcessInstance extends Execution {
    * The id of the process definition of the process instance.
    */
   String getProcessDefinitionId();
+  
+  /**
+   * The name of the process definition of the process instance.
+   */
+  String getProcessDefinitionName();
+  
+  /**
+   * The key of the process definition of the process instance.
+   */
+  String getProcessDefinitionKey();
+  
+  /**
+   * The version of the process definition of the process instance.
+   */
+  Integer getProcessDefinitionVersion();
+  
+  /**
+   * The deployment id of the process definition of the process instance.
+   */
+  String getDeploymentId();
   
   /**
    * The business key of this process instance.
@@ -56,4 +77,18 @@ public interface ProcessInstance extends Execution {
    */
   String getName();
   
+  /**
+   * Returns the description of this process instance.
+   */
+  String getDescription();
+  
+  /**
+   * Returns the localized name of this process instance.
+   */
+  String getLocalizedName();
+  
+  /**
+   * Returns the localized description of this process instance.
+   */
+  String getLocalizedDescription();
 }

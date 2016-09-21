@@ -55,6 +55,7 @@ public class CallActivityXMLConverter extends BaseBpmnXMLConverter {
     CallActivity callActivity = new CallActivity();
     BpmnXMLUtil.addXMLLocation(callActivity, xtr);
     callActivity.setCalledElement(xtr.getAttributeValue(null, ATTRIBUTE_CALL_ACTIVITY_CALLEDELEMENT));
+    callActivity.setInheritVariables(Boolean.valueOf(xtr.getAttributeValue(ACTIVITI_EXTENSIONS_NAMESPACE, ATTRIBUTE_CALL_ACTIVITY_INHERITVARIABLES)));
     parseChildElements(getXMLElementName(), callActivity, childParserMap, model, xtr);
     return callActivity;
   }
@@ -64,6 +65,7 @@ public class CallActivityXMLConverter extends BaseBpmnXMLConverter {
     CallActivity callActivity = (CallActivity) element;
     if (StringUtils.isNotEmpty(callActivity.getCalledElement())) {
       xtw.writeAttribute(ATTRIBUTE_CALL_ACTIVITY_CALLEDELEMENT, callActivity.getCalledElement());
+      xtw.writeAttribute(ACTIVITI_EXTENSIONS_NAMESPACE, ATTRIBUTE_CALL_ACTIVITY_INHERITVARIABLES, String.valueOf(callActivity.isInheritVariables()));
     }
   }
   
@@ -80,7 +82,7 @@ public class CallActivityXMLConverter extends BaseBpmnXMLConverter {
   }
   
   private boolean writeIOParameters(String elementName, List<IOParameter> parameterList, boolean didWriteExtensionStartElement, XMLStreamWriter xtw) throws Exception {
-    if (parameterList.size() == 0) return didWriteExtensionStartElement;
+    if (parameterList.isEmpty()) return didWriteExtensionStartElement;
     
     for (IOParameter ioParameter : parameterList) {
       if (didWriteExtensionStartElement == false) { 

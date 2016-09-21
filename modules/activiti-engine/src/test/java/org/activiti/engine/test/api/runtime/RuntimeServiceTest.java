@@ -13,6 +13,10 @@
 
 package org.activiti.engine.test.api.runtime;
 
+import static com.googlecode.catchexception.CatchException.catchException;
+import static com.googlecode.catchexception.CatchException.caughtException;
+
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +35,7 @@ import org.activiti.engine.impl.util.CollectionUtil;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.Execution;
 import org.activiti.engine.runtime.ProcessInstance;
+import org.activiti.engine.runtime.ProcessInstanceBuilder;
 import org.activiti.engine.task.Task;
 import org.activiti.engine.test.Deployment;
 
@@ -112,7 +117,7 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
   
   @Deployment(resources={
     "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
-  public void startProcessInstanceWithBusinessKey() {
+  public void testStartProcessInstanceWithBusinessKey() {
     ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery().singleResult();
     
     // by key
@@ -125,7 +130,7 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
     processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess", "456", CollectionUtil.singletonMap("var", "value"));
     assertNotNull(processInstance);
     assertEquals(2, runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess").count());
-    assertEquals("var", runtimeService.getVariable(processInstance.getId(), "var"));
+    assertEquals("value", runtimeService.getVariable(processInstance.getId(), "var"));
     
     // by id
     processInstance = runtimeService.startProcessInstanceById(processDefinition.getId(), "789");
@@ -136,7 +141,58 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
     processInstance = runtimeService.startProcessInstanceById(processDefinition.getId(), "101123", CollectionUtil.singletonMap("var", "value2"));
     assertNotNull(processInstance);
     assertEquals(4, runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess").count());
-    assertEquals("var", runtimeService.getVariable(processInstance.getId(), "var"));
+    assertEquals("value2", runtimeService.getVariable(processInstance.getId(), "var"));
+  }
+  
+  @Deployment(resources={
+  "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testStartProcessInstanceByProcessInstanceBuilder() {
+    ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery().singleResult();
+    
+    ProcessInstanceBuilder processInstanceBuilder = runtimeService.createProcessInstanceBuilder();
+    
+    // by key
+    ProcessInstance processInstance = processInstanceBuilder.processDefinitionKey("oneTaskProcess").businessKey("123").start();
+    assertNotNull(processInstance);
+    assertEquals("123", processInstance.getBusinessKey());
+    assertEquals(1, runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess").count());
+    
+    processInstanceBuilder = runtimeService.createProcessInstanceBuilder();
+    
+    // by key, with processInstance name with variables
+    processInstance = processInstanceBuilder.processDefinitionKey("oneTaskProcess").businessKey("456").addVariable("var", "value")
+        .processInstanceName("processName1").start();
+    assertNotNull(processInstance);
+    assertEquals(2, runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess").count());
+    assertEquals("processName1", processInstance.getName());
+    assertEquals("456", processInstance.getBusinessKey());
+    assertEquals("value", runtimeService.getVariable(processInstance.getId(), "var"));
+    
+    processInstanceBuilder = runtimeService.createProcessInstanceBuilder();
+    
+    // by id
+    processInstance = processInstanceBuilder.processDefinitionId(processDefinition.getId()).businessKey("789").start();
+    assertNotNull(processInstance);
+    assertEquals(3, runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess").count());
+    assertEquals("789", processInstance.getBusinessKey());
+    
+    processInstanceBuilder = runtimeService.createProcessInstanceBuilder();
+    // by id with variables
+    processInstance = processInstanceBuilder.processDefinitionId(processDefinition.getId()).businessKey("101123")
+        .addVariable("var", "value2").start();
+    assertNotNull(processInstance);
+    assertEquals(4, runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess").count());
+    assertEquals("value2", runtimeService.getVariable(processInstance.getId(), "var"));
+    assertEquals("101123", processInstance.getBusinessKey());
+    
+    processInstanceBuilder = runtimeService.createProcessInstanceBuilder();
+    // by id and processInstance name
+    processInstance = processInstanceBuilder.processDefinitionId(processDefinition.getId()).businessKey("101124")
+        .processInstanceName("processName2").start();
+    assertNotNull(processInstance);
+    assertEquals(5, runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess").count());
+    assertEquals("processName2", processInstance.getName());
+    assertEquals("101124", processInstance.getBusinessKey());
   }
   
   @Deployment(resources={
@@ -144,7 +200,7 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
   public void testNonUniqueBusinessKey() {
     runtimeService.startProcessInstanceByKey("oneTaskProcess", "123");
     
-    // Behaviour changed: http://jira.codehaus.org/browse/ACT-1860
+    // Behaviour changed: https://activiti.atlassian.net/browse/ACT-1860
     runtimeService.startProcessInstanceByKey("oneTaskProcess", "123");
     assertEquals(2, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("123").count());
   }
@@ -191,6 +247,7 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
       
       assertNotNull(historicInstance);
       assertEquals(deleteReason, historicInstance.getDeleteReason());
+      assertNotNull(historicInstance.getEndTime());
     }    
   }
   
@@ -210,7 +267,7 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
             .singleResult();
         
         assertNotNull(historicInstance);
-        assertNull(historicInstance.getDeleteReason());
+        assertEquals("ACTIVITY_DELETED", historicInstance.getDeleteReason());
       }    
   }
   
@@ -264,7 +321,7 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
   }
   
   /**
-   * Testcase to reproduce ACT-950 (https://jira.codehaus.org/browse/ACT-950) 
+   * Testcase to reproduce ACT-950 (https://activiti.atlassian.net/browse/ACT-950)
    */
   @Deployment
   public void testFindActiveActivityIdProcessWithErrorEventAndSubProcess() {
@@ -900,5 +957,99 @@ public class RuntimeServiceTest extends PluggableActivitiTestCase {
       runtimeService.startProcessInstanceByKey("catchPanicMessage");      
     }
   }
-   
+
+    @Deployment(resources={
+            "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+    public void testGetVariableUnexistingVariableNameWithCast() {
+        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+        String variableValue = runtimeService.getVariable(processInstance.getId(), "unexistingVariable", String.class);
+        assertNull(variableValue);
+    }
+
+    @Deployment(resources={
+            "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+    public void testGetVariableExistingVariableNameWithCast() {
+        Map<String, Object> params = new HashMap<String, Object>();
+        params.put("var1", true);
+        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess", params);
+        Boolean variableValue = runtimeService.getVariable(processInstance.getId(), "var1", Boolean.class);
+        assertTrue(variableValue);
+    }
+
+    @Deployment(resources={
+            "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+    public void testGetVariableExistingVariableNameWithInvalidCast() {
+        Map<String, Object> params = new HashMap<String, Object>();
+        params.put("var1", true);
+        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess", params);
+        catchException(runtimeService).getVariable(processInstance.getId(), "var1", String.class);
+        Exception e = caughtException();
+        assertNotNull(e);
+        assertTrue(e instanceof ClassCastException);
+    }
+
+    @Deployment(resources={
+            "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+    public void testGetVariableLocalUnexistingVariableNameWithCast() {
+        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+        String variableValue = runtimeService.getVariableLocal(processInstance.getId(), "var1", String.class);
+        assertNull(variableValue);
+    }
+
+    @Deployment(resources={
+            "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+    public void testGetVariableLocalExistingVariableNameWithCast() {
+        Map<String, Object> params = new HashMap<String, Object>();
+        params.put("var1", true);
+        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess", params);
+        Boolean variableValue = runtimeService.getVariableLocal(processInstance.getId(), "var1", Boolean.class);
+        assertTrue(variableValue);
+    }
+
+    @Deployment(resources={
+            "org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+    public void testGetVariableLocalExistingVariableNameWithInvalidCast() {
+        Map<String, Object> params = new HashMap<String, Object>();
+        params.put("var1", true);
+        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess", params);
+        catchException(runtimeService).getVariableLocal(processInstance.getId(), "var1", String.class);
+        Exception e = caughtException();
+        assertNotNull(e);
+        assertTrue(e instanceof ClassCastException);
+    }
+    
+    // Test for https://activiti.atlassian.net/browse/ACT-2186
+    @Deployment(resources={
+    	"org/activiti/engine/test/api/oneTaskProcess.bpmn20.xml"})
+    public void testHistoricVariableRemovedWhenRuntimeVariableIsRemoved() {
+	     if(processEngineConfiguration.getHistoryLevel().isAtLeast(HistoryLevel.AUDIT)) {
+	    	 Map<String, Object> vars = new HashMap<String, Object>();
+	       vars.put("var1", "Hello");
+	       vars.put("var2", "World");
+	       vars.put("var3", "!");
+	       ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess", vars);
+	       
+	       // Verify runtime
+	       assertEquals(3, runtimeService.getVariables(processInstance.getId()).size());
+	       assertEquals(3, runtimeService.getVariables(processInstance.getId(), Arrays.asList("var1", "var2", "var3")).size());
+	       assertNotNull(runtimeService.getVariable(processInstance.getId(), "var2"));
+	       
+	       // Verify history
+	       assertEquals(3, historyService.createHistoricVariableInstanceQuery().list().size());
+	       assertNotNull(historyService.createHistoricVariableInstanceQuery().processInstanceId(processInstance.getId()).variableName("var2").singleResult());
+	       
+	       // Remove one variable
+	       runtimeService.removeVariable(processInstance.getId(), "var2");
+	       
+	       // Verify runtime
+	       assertEquals(2, runtimeService.getVariables(processInstance.getId()).size());
+	       assertEquals(2, runtimeService.getVariables(processInstance.getId(), Arrays.asList("var1", "var2", "var3")).size());
+	       assertNull(runtimeService.getVariable(processInstance.getId(), "var2"));
+	       
+	       // Verify history
+	       assertEquals(2, historyService.createHistoricVariableInstanceQuery().list().size());
+	       assertNull(historyService.createHistoricVariableInstanceQuery().processInstanceId(processInstance.getId()).variableName("var2").singleResult());
+	    }
+    }
+    
 }

@@ -14,6 +14,7 @@
 package org.activiti.engine.impl.pvm.runtime;
 
 import java.util.List;
+import java.util.Map;
 
 import org.activiti.engine.delegate.event.ActivitiEventType;
 import org.activiti.engine.delegate.event.impl.ActivitiEventBuilder;
@@ -41,9 +42,19 @@ public class AtomicOperationProcessStart extends AbstractEventAtomicOperation {
 
   @Override
   protected void eventNotificationsCompleted(InterpretableExecution execution) {
-  	if(Context.getProcessEngineConfiguration() != null && Context.getProcessEngineConfiguration().getEventDispatcher().isEnabled()) {
+  	if (Context.getProcessEngineConfiguration() != null && Context.getProcessEngineConfiguration().getEventDispatcher().isEnabled()) {
+  	  Map<String, Object> variablesMap = null;
+  	  try {
+  	    variablesMap = execution.getVariables();
+  	  } catch (Throwable t) {
+  	    // In some rare cases getting the execution variables can fail (JPA entity load failure for example)
+  	    // We ignore the exception here, because it's only meant to include variables in the initialized event.
+  	  }
     	Context.getProcessEngineConfiguration().getEventDispatcher().dispatchEvent(
-    			ActivitiEventBuilder.createEntityEvent(ActivitiEventType.ENTITY_CREATED, execution));
+    			ActivitiEventBuilder.createEntityWithVariablesEvent(ActivitiEventType.ENTITY_INITIALIZED, 
+    			    execution, variablesMap, false));
+      Context.getProcessEngineConfiguration().getEventDispatcher()
+              .dispatchEvent(ActivitiEventBuilder.createProcessStartedEvent(execution, variablesMap, false));
     }
   	
     ProcessDefinitionImpl processDefinition = execution.getProcessDefinition();

@@ -41,7 +41,7 @@ public class EndEventParseHandler extends AbstractActivityBpmnParseHandler<EndEv
     
     ActivityImpl endEventActivity = createActivityOnCurrentScope(bpmnParse, endEvent, BpmnXMLConstants.ELEMENT_EVENT_END);
     EventDefinition eventDefinition = null;
-    if (endEvent.getEventDefinitions().size() > 0) {
+    if (!endEvent.getEventDefinitions().isEmpty()) {
       eventDefinition = endEvent.getEventDefinitions().get(0);
     }
     
@@ -70,10 +70,14 @@ public class EndEventParseHandler extends AbstractActivityBpmnParseHandler<EndEv
     
     // Terminate end event  
     } else if (eventDefinition instanceof TerminateEventDefinition) {
+      endEventActivity.setAsync(endEvent.isAsynchronous());
+      endEventActivity.setExclusive(!endEvent.isNotExclusive());
       endEventActivity.setActivityBehavior(bpmnParse.getActivityBehaviorFactory().createTerminateEndEventActivityBehavior(endEvent));
       
     // None end event  
     } else if (eventDefinition == null) {
+      endEventActivity.setAsync(endEvent.isAsynchronous());
+      endEventActivity.setExclusive(!endEvent.isNotExclusive());
       endEventActivity.setActivityBehavior(bpmnParse.getActivityBehaviorFactory().createNoneEndEventActivityBehavior(endEvent));
     }
   }

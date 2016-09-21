@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.activiti.engine.ActivitiException;
-import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
 import org.activiti.engine.impl.test.PluggableActivitiTestCase;
 import org.activiti.engine.impl.util.CollectionUtil;
 import org.activiti.engine.runtime.Execution;
@@ -185,16 +184,15 @@ public class InclusiveGatewayTest extends PluggableActivitiTestCase {
     orders.add(new InclusiveGatewayTestOrder(300));
     orders.add(new InclusiveGatewayTestOrder(175));
 
-    ProcessInstance pi = null;
     try {
-      pi = runtimeService.startProcessInstanceByKey("inclusiveDecisionBasedOnListOrArrayOfBeans", CollectionUtil.singletonMap("orders", orders));
+      runtimeService.startProcessInstanceByKey("inclusiveDecisionBasedOnListOrArrayOfBeans", CollectionUtil.singletonMap("orders", orders));
       fail();
     } catch (ActivitiException e) {
       // expect an exception to be thrown here
     }
 
     orders.set(1, new InclusiveGatewayTestOrder(175));
-    pi = runtimeService.startProcessInstanceByKey("inclusiveDecisionBasedOnListOrArrayOfBeans", CollectionUtil.singletonMap("orders", orders));
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("inclusiveDecisionBasedOnListOrArrayOfBeans", CollectionUtil.singletonMap("orders", orders));
     Task task = taskService.createTaskQuery().processInstanceId(pi.getId()).singleResult();
     assertNotNull(task);
     assertEquals(BEAN_TASK3_NAME, task.getName());
@@ -332,7 +330,7 @@ public class InclusiveGatewayTest extends PluggableActivitiTestCase {
     
 
     for (Execution execution : runtimeService.createExecutionQuery().list()) {
-      System.out.println(((ExecutionEntity) execution).getActivityId());
+      System.out.println(execution.getActivityId());
     }
     
     assertEquals("Found executions: " + runtimeService.createExecutionQuery().list(), 0, runtimeService.createExecutionQuery().count());
@@ -387,7 +385,7 @@ public class InclusiveGatewayTest extends PluggableActivitiTestCase {
     variableMap.put("a", 2);
     variableMap.put("b", 2);
     try {
-      processInstance = runtimeService.startProcessInstanceByKey("InclusiveGateway", variableMap);
+      runtimeService.startProcessInstanceByKey("InclusiveGateway", variableMap);
       fail();
     } catch(ActivitiException e) {
       assertTrue(e.getMessage().contains("No outgoing sequence flow"));
@@ -435,8 +433,63 @@ public class InclusiveGatewayTest extends PluggableActivitiTestCase {
   @Deployment
   public void testAsyncBehavior() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("async");
-    waitForJobExecutorToProcessAllJobs(3000, 500);
+    waitForJobExecutorToProcessAllJobs(10000, 500);
     assertEquals(0, runtimeService.createProcessInstanceQuery().processInstanceId(processInstance.getId()).count());
+  }
+  
+  @Deployment
+  public void testDirectSequenceFlow() {
+    Map<String, Object> varMap = new HashMap<String, Object>();
+    varMap.put("input", 1);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("inclusiveGwDirectSequenceFlow", varMap);
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNotNull(task);
+    assertEquals("theTask1", task.getTaskDefinitionKey());
+    taskService.complete(task.getId());
+    assertEquals(0, runtimeService.createProcessInstanceQuery().processInstanceId(processInstance.getId()).count());
+    
+    varMap = new HashMap<String, Object>();
+    varMap.put("input", 3);
+    processInstance = runtimeService.startProcessInstanceByKey("inclusiveGwDirectSequenceFlow", varMap);
+    List<Task> tasks = taskService.createTaskQuery().list();
+    assertEquals(2, tasks.size());
+    taskService.complete(tasks.get(0).getId());
+    taskService.complete(tasks.get(1).getId());
+    assertEquals(0, runtimeService.createProcessInstanceQuery().processInstanceId(processInstance.getId()).count());
+    
+    varMap = new HashMap<String, Object>();
+    varMap.put("input", 0);
+    processInstance = runtimeService.startProcessInstanceByKey("inclusiveGwDirectSequenceFlow", varMap);
+    assertTrue(processInstance.isEnded());
+  }
+  
+  @Deployment
+  public void testSkipExpression() {
+    Map<String, Object> varMap = new HashMap<String, Object>();
+    varMap.put("_ACTIVITI_SKIP_EXPRESSION_ENABLED", true);
+    varMap.put("input", 10);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("inclusiveGwSkipExpression", varMap);
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNotNull(task);
+    assertEquals("theTask1", task.getTaskDefinitionKey());
+    taskService.complete(task.getId());
+    assertEquals(0, runtimeService.createProcessInstanceQuery().processInstanceId(processInstance.getId()).count());
+    
+    varMap = new HashMap<String, Object>();
+    varMap.put("_ACTIVITI_SKIP_EXPRESSION_ENABLED", true);
+    varMap.put("input", 30);
+    processInstance = runtimeService.startProcessInstanceByKey("inclusiveGwSkipExpression", varMap);
+    List<Task> tasks = taskService.createTaskQuery().list();
+    assertEquals(2, tasks.size());
+    taskService.complete(tasks.get(0).getId());
+    taskService.complete(tasks.get(1).getId());
+    assertEquals(0, runtimeService.createProcessInstanceQuery().processInstanceId(processInstance.getId()).count());
+    
+    varMap = new HashMap<String, Object>();
+    varMap.put("_ACTIVITI_SKIP_EXPRESSION_ENABLED", true);
+    varMap.put("input", 3);
+    processInstance = runtimeService.startProcessInstanceByKey("inclusiveGwSkipExpression", varMap);
+    assertTrue(processInstance.isEnded());    
   }
   
   /*@Deployment

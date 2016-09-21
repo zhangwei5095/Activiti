@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 
 /**
  * @author Frederik Heremans
+ * @author Joram Barrez
  */
 public class TaskQueryRequest extends PaginateRequest {
 
@@ -43,10 +44,12 @@ public class TaskQueryRequest extends PaginateRequest {
   private String delegationState;
   private String candidateUser;
   private String candidateGroup;
+  private List<String> candidateGroupIn;
   private String involvedUser;
   private String processInstanceId;
   private String processInstanceBusinessKey;
   private String processInstanceBusinessKeyLike;
+  private String processDefinitionId;
   private String processDefinitionKey;
   private String processDefinitionName;
   private String processDefinitionKeyLike;
@@ -68,7 +71,9 @@ public class TaskQueryRequest extends PaginateRequest {
   private String tenantId;
   private String tenantIdLike;
   private Boolean withoutTenantId;
-  
+  private String candidateOrAssigned;
+  private String category;
+
   private List<QueryVariable> taskVariables;
   private List<QueryVariable> processInstanceVariables;
   
@@ -191,6 +196,14 @@ public class TaskQueryRequest extends PaginateRequest {
     this.candidateGroup = candidateGroup;
   }
   
+  public List<String> getCandidateGroupIn() {
+	return candidateGroupIn;
+  }
+	  
+  public void setCandidateGroupIn(List<String> candidateGroupIn) {
+	this.candidateGroupIn = candidateGroupIn;
+  }
+
   public String getInvolvedUser() {
     return involvedUser;
   }
@@ -368,6 +381,14 @@ public class TaskQueryRequest extends PaginateRequest {
 	  return withoutDueDate;
   }
   
+  public String getProcessDefinitionId() {
+    return processDefinitionId;
+  }
+
+  public void setProcessDefinitionId(String processDefinitionId) {
+    this.processDefinitionId = processDefinitionId;
+  }
+
   public String getProcessDefinitionKey() {
 	  return processDefinitionKey;
   }
@@ -407,4 +428,21 @@ public class TaskQueryRequest extends PaginateRequest {
   public Boolean getWithoutTenantId() {
 	  return withoutTenantId;
   }
+
+  public String getCandidateOrAssigned() {
+    return candidateOrAssigned;
+  }
+
+  public void setCandidateOrAssigned(String candidateOrAssigned) {
+    this.candidateOrAssigned = candidateOrAssigned;
+  }
+
+  public String getCategory() {
+    return category;
+  }
+
+  public void setCategory(String category) {
+    this.category = category;
+  }
+
 }

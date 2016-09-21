@@ -44,6 +44,7 @@ public class HistoricTaskInstanceQueryRequest extends PaginateRequest {
   private String taskDescriptionLike;
   private String taskDefinitionKey;
   private String taskDefinitionKeyLike;
+  private String taskCategory;
   private String taskDeleteReason;
   private String taskDeleteReasonLike;
   private String taskAssignee;
@@ -74,6 +75,7 @@ public class HistoricTaskInstanceQueryRequest extends PaginateRequest {
   private String tenantId;
   private String tenantIdLike;
   private Boolean withoutTenantId;
+  private String taskCandidateGroup;
 
   public String getTaskId() {
     return taskId;
@@ -203,6 +205,14 @@ public class HistoricTaskInstanceQueryRequest extends PaginateRequest {
 	  this.taskDefinitionKeyLike = taskDefinitionKeyLike;
   }
   
+  public String getTaskCategory() {
+    return taskCategory;
+  }
+
+  public void setTaskCategory(String taskCategory) {
+    this.taskCategory = taskCategory;
+  }
+
   public String getTaskDeleteReason() {
     return taskDeleteReason;
   }
@@ -444,4 +454,13 @@ public class HistoricTaskInstanceQueryRequest extends PaginateRequest {
 	public void setWithoutTenantId(Boolean withoutTenantId) {
 		this.withoutTenantId = withoutTenantId;
 	}
+
+  public String getTaskCandidateGroup() {
+    return taskCandidateGroup;
+  }
+
+  public void setTaskCandidateGroup(String taskCandidateGroup) {
+    this.taskCandidateGroup = taskCandidateGroup;
+  }
+
 }

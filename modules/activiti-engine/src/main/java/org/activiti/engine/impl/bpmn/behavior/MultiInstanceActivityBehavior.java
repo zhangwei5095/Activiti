@@ -13,6 +13,7 @@
 
 package org.activiti.engine.impl.bpmn.behavior;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -27,6 +28,7 @@ import org.activiti.engine.impl.bpmn.helper.ErrorPropagation;
 import org.activiti.engine.impl.bpmn.helper.ScopeUtil;
 import org.activiti.engine.impl.context.Context;
 import org.activiti.engine.impl.delegate.ExecutionListenerInvocation;
+import org.activiti.engine.impl.history.handler.ActivityInstanceStartHandler;
 import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
 import org.activiti.engine.impl.pvm.delegate.ActivityBehavior;
 import org.activiti.engine.impl.pvm.delegate.ActivityExecution;
@@ -90,6 +92,10 @@ public abstract class MultiInstanceActivityBehavior extends FlowNodeActivityBeha
         createInstances(execution);
       } catch (BpmnError error) {
         ErrorPropagation.propagateError(error, execution);
+      }
+
+      if (resolveNrOfInstances(execution) == 0) {
+        leave(execution);
       }
     } else {
         innerActivityBehavior.execute(execution);
@@ -169,6 +175,7 @@ public abstract class MultiInstanceActivityBehavior extends FlowNodeActivityBeha
     // If loopcounter == 1, then historic activity instance already created, no need to
     // pass through executeActivity again since it will create a new historic activity
     if (loopCounter == 0) {
+    	callCustomActivityStartListeners(execution);
       innerActivityBehavior.execute(execution);
     } else {
       execution.executeActivity(activity);
@@ -226,11 +233,34 @@ public abstract class MultiInstanceActivityBehavior extends FlowNodeActivityBeha
       value = parent.getVariableLocal(variableName);
       parent = parent.getParent();
     }
-    return (Integer) value;
+    return (Integer) (value != null ? value : 0);
   }
 
   protected Integer getLocalLoopVariable(ActivityExecution execution, String variableName) {
     return (Integer) execution.getVariableLocal(variableName);
+  }
+  
+  /**
+   * Since the first loop of the multi instance is not executed as a regular activity,
+   * it is needed to call the start listeners yourself.
+   */
+  protected void callCustomActivityStartListeners(ActivityExecution execution) {
+    List<ExecutionListener> listeners = activity.getExecutionListeners(org.activiti.engine.impl.pvm.PvmEvent.EVENTNAME_START);
+    
+    List<ExecutionListener> filteredExecutionListeners = new ArrayList<ExecutionListener>(listeners.size());
+    if (listeners != null) {
+	    // Sad that we have to do this, but it's the only way I could find (which is also safe for backwards compatibility)
+	    
+	    for (ExecutionListener executionListener : listeners) {
+	    	if (!(executionListener instanceof ActivityInstanceStartHandler)) {
+	    		filteredExecutionListeners.add(executionListener);
+	    	}
+	    }
+	    
+	    CallActivityListenersOperation atomicOperation = new CallActivityListenersOperation(filteredExecutionListeners);
+	    Context.getCommandContext().performOperation(atomicOperation, (InterpretableExecution)execution);
+    }
+    
   }
   
   /**
@@ -239,7 +269,7 @@ public abstract class MultiInstanceActivityBehavior extends FlowNodeActivityBeha
    */
   protected void callActivityEndListeners(ActivityExecution execution) {
     List<ExecutionListener> listeners = activity.getExecutionListeners(org.activiti.engine.impl.pvm.PvmEvent.EVENTNAME_END);
-    CallActivityEndListenersOperation atomicOperation = new CallActivityEndListenersOperation(listeners);
+    CallActivityListenersOperation atomicOperation = new CallActivityListenersOperation(listeners);
     Context.getCommandContext().performOperation(atomicOperation, (InterpretableExecution)execution);
   }
   
@@ -303,13 +333,14 @@ public abstract class MultiInstanceActivityBehavior extends FlowNodeActivityBeha
    * so that an executionContext is present.
    * 
    * @author Aris Tzoumas
+   * @author Joram Barrez
    *
    */
-  private static final class CallActivityEndListenersOperation implements AtomicOperation {
+  private static final class CallActivityListenersOperation implements AtomicOperation {
 
 	private List<ExecutionListener> listeners;
 	
-	private CallActivityEndListenersOperation(List<ExecutionListener> listeners) {
+	private CallActivityListenersOperation(List<ExecutionListener> listeners) {
 		this.listeners = listeners;
 	}
 	
@@ -321,7 +352,7 @@ public abstract class MultiInstanceActivityBehavior extends FlowNodeActivityBeha
           .getDelegateInterceptor()
           .handleInvocation(new ExecutionListenerInvocation(executionListener, execution));
       } catch (Exception e) {
-        throw new ActivitiException("Couldn't execute end listener", e);
+        throw new ActivitiException("Couldn't execute listener", e);
       }
     }
 	}

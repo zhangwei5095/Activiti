@@ -13,25 +13,43 @@
 
 package org.activiti.engine.impl.test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+
 import junit.framework.AssertionFailedError;
-import org.activiti.bpmn.model.*;
-import org.activiti.engine.*;
+
+import org.activiti.bpmn.model.BpmnModel;
+import org.activiti.bpmn.model.EndEvent;
+import org.activiti.bpmn.model.SequenceFlow;
+import org.activiti.bpmn.model.StartEvent;
+import org.activiti.bpmn.model.UserTask;
+import org.activiti.engine.DynamicBpmnService;
+import org.activiti.engine.FormService;
+import org.activiti.engine.HistoryService;
+import org.activiti.engine.IdentityService;
+import org.activiti.engine.ManagementService;
+import org.activiti.engine.ProcessEngine;
+import org.activiti.engine.RepositoryService;
+import org.activiti.engine.RuntimeService;
+import org.activiti.engine.TaskService;
+import org.activiti.engine.history.HistoricActivityInstance;
+import org.activiti.engine.history.HistoricProcessInstance;
+import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.impl.ProcessEngineImpl;
 import org.activiti.engine.impl.cfg.ProcessEngineConfigurationImpl;
-import org.activiti.engine.impl.context.Context;
 import org.activiti.engine.impl.db.DbSqlSession;
+import org.activiti.engine.impl.history.HistoryLevel;
 import org.activiti.engine.impl.interceptor.Command;
 import org.activiti.engine.impl.interceptor.CommandConfig;
 import org.activiti.engine.impl.interceptor.CommandContext;
 import org.activiti.engine.impl.interceptor.CommandExecutor;
-import org.activiti.engine.impl.jobexecutor.JobExecutor;
 import org.activiti.engine.repository.Deployment;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.junit.Assert;
-
-import java.util.*;
-import java.util.concurrent.Callable;
 
 
 /**
@@ -56,6 +74,7 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
   protected HistoryService historyService;
   protected IdentityService identityService;
   protected ManagementService managementService;
+  protected DynamicBpmnService dynamicBpmnService;
   
   @Override
   protected void setUp() throws Exception {
@@ -78,7 +97,6 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
       initializeServices();
     }
 
-    String deploymentId = null;
     try {
       
     	deploymentIdFromDeploymentAnnotation = TestHelper.annotationDeploymentSetUp(processEngine, getClass(), getName()); 
@@ -129,7 +147,7 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
       if (!TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK.contains(tableNameWithoutPrefix)) {
         Long count = tableCounts.get(tableName);
         if (count!=0L) {
-          outputMessage.append("  "+tableName + ": " + count + " record(s) ");
+          outputMessage.append("  ").append(tableName).append(": ").append(count).append(" record(s) ");
         }
       }
     }
@@ -171,6 +189,7 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
     historyService = processEngine.getHistoryService();
     identityService = processEngine.getIdentityService();
     managementService = processEngine.getManagementService();
+    dynamicBpmnService = processEngine.getDynamicBpmnService();
   }
   
   public void assertProcessEnded(final String processInstanceId) {
@@ -183,76 +202,51 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
     if (processInstance!=null) {
       throw new AssertionFailedError("Expected finished process instance '"+processInstanceId+"' but it was still in the db"); 
     }
+    
+    // Verify historical data if end times are correctly set
+    if (processEngineConfiguration.getHistoryLevel().isAtLeast(HistoryLevel.AUDIT)) {
+      
+      // process instance
+      HistoricProcessInstance historicProcessInstance = historyService.createHistoricProcessInstanceQuery()
+          .processInstanceId(processInstanceId).singleResult();
+      assertEquals(processInstanceId, historicProcessInstance.getId());
+      assertNotNull("Historic process instance has no start time", historicProcessInstance.getStartTime());
+      assertNotNull("Historic process instance has no end time", historicProcessInstance.getEndTime());
+      
+      // tasks
+      List<HistoricTaskInstance> historicTaskInstances = historyService.createHistoricTaskInstanceQuery()
+          .processInstanceId(processInstanceId).list();
+      if (historicTaskInstances != null && historicTaskInstances.size() > 0) {
+        for (HistoricTaskInstance historicTaskInstance : historicTaskInstances) {
+          assertEquals(processInstanceId, historicTaskInstance.getProcessInstanceId());
+          assertNotNull("Historic task " + historicTaskInstance.getTaskDefinitionKey() + " has no start time", historicTaskInstance.getStartTime());
+          assertNotNull("Historic task " + historicTaskInstance.getTaskDefinitionKey() + " has no end time", historicTaskInstance.getEndTime());
+        }
+      }
+      
+      // activities
+      List<HistoricActivityInstance> historicActivityInstances = historyService.createHistoricActivityInstanceQuery()
+          .processInstanceId(processInstanceId).list();
+      if (historicActivityInstances != null && historicActivityInstances.size() > 0) {
+        for (HistoricActivityInstance historicActivityInstance : historicActivityInstances) {
+          assertEquals(processInstanceId, historicActivityInstance.getProcessInstanceId());
+          assertNotNull("Historic activity instance " + historicActivityInstance.getActivityId() + " has no start time", historicActivityInstance.getStartTime());
+          assertNotNull("Historic activity instance " + historicActivityInstance.getActivityId() + " has no end time", historicActivityInstance.getEndTime());
+        }
+      }
+    }
   }
 
   public void waitForJobExecutorToProcessAllJobs(long maxMillisToWait, long intervalMillis) {
-    JobExecutor jobExecutor = processEngineConfiguration.getJobExecutor();
-    jobExecutor.start();
-
-    try {
-      Timer timer = new Timer();
-      InteruptTask task = new InteruptTask(Thread.currentThread());
-      timer.schedule(task, maxMillisToWait);
-      boolean areJobsAvailable = true;
-      try {
-        while (areJobsAvailable && !task.isTimeLimitExceeded()) {
-          Thread.sleep(intervalMillis);
-          try {
-            areJobsAvailable = areJobsAvailable();
-          } catch(Throwable t) {
-            // Ignore, possible that exception occurs due to locking/updating of table on MSSQL when
-            // isolation level doesn't allow READ of the table
-          }
-        }
-      } catch (InterruptedException e) {
-        // ignore
-      } finally {
-        timer.cancel();
-      }
-      if (areJobsAvailable) {
-        throw new ActivitiException("time limit of " + maxMillisToWait + " was exceeded");
-      }
-
-    } finally {
-      jobExecutor.shutdown();
-    }
+    JobTestHelper.waitForJobExecutorToProcessAllJobs(processEngineConfiguration, managementService, maxMillisToWait, intervalMillis);
   }
 
   public void waitForJobExecutorOnCondition(long maxMillisToWait, long intervalMillis, Callable<Boolean> condition) {
-    JobExecutor jobExecutor = processEngineConfiguration.getJobExecutor();
-    jobExecutor.start();
-
-    try {
-      Timer timer = new Timer();
-      InteruptTask task = new InteruptTask(Thread.currentThread());
-      timer.schedule(task, maxMillisToWait);
-      boolean conditionIsViolated = true;
-      try {
-        while (conditionIsViolated) {
-          Thread.sleep(intervalMillis);
-          conditionIsViolated = !condition.call();
-        }
-      } catch (InterruptedException e) {
-      } catch (Exception e) {
-        throw new ActivitiException("Exception while waiting on condition: "+e.getMessage(), e);
-      } finally {
-        timer.cancel();
-      }
-      if (conditionIsViolated) {
-        throw new ActivitiException("time limit of " + maxMillisToWait + " was exceeded");
-      }
-
-    } finally {
-      jobExecutor.shutdown();
-    }
+    JobTestHelper.waitForJobExecutorOnCondition(processEngineConfiguration, maxMillisToWait, intervalMillis, condition);
   }
-
-  public boolean areJobsAvailable() {
-    return !managementService
-      .createJobQuery()
-      .executable()
-      .list()
-      .isEmpty();
+  
+  public void executeJobExecutorForTime(long maxMillisToWait, long intervalMillis) {
+    JobTestHelper.executeJobExecutorForTime(processEngineConfiguration, maxMillisToWait, intervalMillis);
   }
   
   /**
@@ -279,7 +273,7 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
     
     EndEvent endEvent = new EndEvent();
     endEvent.setId("theEnd");
-    process.addFlowElement(endEvent);;
+    process.addFlowElement(endEvent);
     
     process.addFlowElement(new SequenceFlow("start", "theTask"));
     process.addFlowElement(new SequenceFlow("theTask", "theEnd"));
@@ -312,7 +306,7 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
     
     EndEvent endEvent = new EndEvent();
     endEvent.setId("theEnd");
-    process.addFlowElement(endEvent);;
+    process.addFlowElement(endEvent);
     
     process.addFlowElement(new SequenceFlow("start", "task1"));
     process.addFlowElement(new SequenceFlow("start", "task2"));
@@ -349,20 +343,5 @@ public abstract class AbstractActivitiTestCase extends PvmTestCase {
   	ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery()
   			.deploymentId(deployment.getId()).singleResult();
   	return processDefinition.getId(); 
-  }
-
-  private static class InteruptTask extends TimerTask {
-    protected boolean timeLimitExceeded = false;
-    protected Thread thread;
-    public InteruptTask(Thread thread) {
-      this.thread = thread;
-    }
-    public boolean isTimeLimitExceeded() {
-      return timeLimitExceeded;
-    }
-    public void run() {
-      timeLimitExceeded = true;
-      thread.interrupt();
-    }
   }
 }

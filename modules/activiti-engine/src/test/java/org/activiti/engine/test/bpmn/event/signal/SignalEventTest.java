@@ -13,9 +13,6 @@
 
 package org.activiti.engine.test.bpmn.event.signal;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -31,7 +28,6 @@ import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.engine.task.Task;
 import org.activiti.engine.test.Deployment;
 import org.activiti.validation.validator.Problems;
-import org.junit.Test;
 
 
 /**
@@ -144,7 +140,7 @@ public class SignalEventTest extends PluggableActivitiTestCase {
   }
   
   /**
-   * Verifies the solution of https://jira.codehaus.org/browse/ACT-1309
+   * Verifies the solution of https://activiti.atlassian.net/browse/ACT-1309
    */
   @Deployment
   public void testSignalBoundaryOnSubProcess() {
@@ -573,7 +569,7 @@ public class SignalEventTest extends PluggableActivitiTestCase {
 	}
 	
 	/**
-	 * Test case for http://jira.codehaus.org/browse/ACT-1978
+	 * Test case for https://activiti.atlassian.net/browse/ACT-1978
 	 */
 	public void testSignalDeleteOnRedeploy() {
 		
@@ -600,5 +596,50 @@ public class SignalEventTest extends PluggableActivitiTestCase {
   		repositoryService.deleteDeployment(deployment.getId(), true);
   	}
 	}
+	
+	@Deployment
+	public void testSignalWaitOnUserTaskBoundaryEvent() {
+	  ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("signal-wait");
+	  Execution execution = runtimeService.createExecutionQuery().processInstanceId(processInstance.getId())
+	      .signalEventSubscriptionName("waitsig")
+	      .singleResult();
+	  assertNotNull(execution);
+	  runtimeService.signalEventReceived("waitsig", execution.getId());
+	  execution = runtimeService.createExecutionQuery().processInstanceId(processInstance.getId())
+        .signalEventSubscriptionName("waitsig")
+        .singleResult();
+	  assertNull(execution);
+	  Task task = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
+	  assertNotNull(task);
+	  assertEquals("Wait2", task.getName());
+	}
+	
+	@Deployment
+	public void testMultipleSignalStartEvents() {
+	  runtimeService.signalEventReceived("signal1");
+	  validateTaskCounts(1, 0, 0);
+	  
+	  runtimeService.signalEventReceived("signal2");
+	  validateTaskCounts(1, 1, 0);
+	  
+	  runtimeService.signalEventReceived("signal3");
+    validateTaskCounts(1, 1, 1);
+    
+    runtimeService.signalEventReceived("signal1");
+    validateTaskCounts(2, 1, 1);
+    
+    runtimeService.signalEventReceived("signal1");
+    validateTaskCounts(3, 1, 1);
+    
+    runtimeService.signalEventReceived("signal3");
+    validateTaskCounts(3, 1, 2);
+	}
+	
+
+  private void validateTaskCounts(long taskACount, long taskBCount, long taskCCount) {
+    assertEquals(taskACount, taskService.createTaskQuery().taskName("Task A").count());
+	  assertEquals(taskBCount, taskService.createTaskQuery().taskName("Task B").count());
+	  assertEquals(taskCCount, taskService.createTaskQuery().taskName("Task C").count());
+  }
 
 }

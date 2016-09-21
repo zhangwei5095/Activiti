@@ -1,3 +1,15 @@
+/* Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.activiti.validation.validator;
 
 
@@ -6,7 +18,8 @@ package org.activiti.validation.validator;
  */
 public interface Problems {
 	
-	String PROCESS_DEFINITION_IS_NOT_EXECUTABLE = "activiti-process-definition-not-executable";
+	String ALL_PROCESS_DEFINITIONS_NOT_EXECUTABLE = "activiti-process-definition-not-executable";
+	String PROCESS_DEFINITION_NOT_EXECUTABLE = "activiti-specific-process-definition-not-executable";
 	
 	String ASSOCIATION_INVALID_SOURCE_REFERENCE = "activiti-asscociation-invalid-source-reference";
 	
@@ -49,7 +62,15 @@ public interface Problems {
 	String EXCLUSIVE_GATEWAY_SEQ_FLOW_WITHOUT_CONDITIONS = "activiti-exclusive-gateway-seq-flow-without-conditions";
 	
 	String EVENT_GATEWAY_ONLY_CONNECTED_TO_INTERMEDIATE_EVENTS = "activiti-event-gateway-only-connected-to-intermediate-events";
-	
+
+	String BPMN_MODEL_TARGET_NAMESPACE_TOO_LONG = "activiti-bpmn-model-target-namespace-too-long";
+
+	String PROCESS_DEFINITION_ID_TOO_LONG = "activiti-process-definition-id-too-long";
+	String PROCESS_DEFINITION_NAME_TOO_LONG = "activiti-process-definition-name-too-long";
+	String PROCESS_DEFINITION_DOCUMENTATION_TOO_LONG = "activiti-process-definition-documentation-too-long";
+
+	String FLOW_ELEMENT_ID_TOO_LONG = "activiti-flow-element-id-too-long";
+
 	String SUBPROCESS_MULTIPLE_START_EVENTS = "activiti-subprocess-multiple-start-event";
 	String SUBPROCESS_START_EVENT_EVENT_DEFINITION_NOT_ALLOWED = "activiti-subprocess-start-event-event-definition-not-allowed";
 	

@@ -43,8 +43,12 @@ public class TaskDefinition implements Serializable {
   protected Set<Expression> candidateUserIdExpressions = new HashSet<Expression>();
   protected Set<Expression> candidateGroupIdExpressions = new HashSet<Expression>();
   protected Expression dueDateExpression;
+  protected Expression businessCalendarNameExpression;
   protected Expression priorityExpression;
   protected Expression categoryExpression;
+  protected Map<String, Set<Expression>> customUserIdentityLinkExpressions = new HashMap<String, Set<Expression>>(); 
+  protected Map<String, Set<Expression>> customGroupIdentityLinkExpressions = new HashMap<String, Set<Expression>>();
+  protected Expression skipExpression;
   
   // form fields
   protected TaskFormHandler taskFormHandler;
@@ -99,12 +103,36 @@ public class TaskDefinition implements Serializable {
     candidateUserIdExpressions.add(userId);
   }
 
+  public void setCandidateUserIdExpressions(Set<Expression> candidateUserIdExpressions) {
+    this.candidateUserIdExpressions = candidateUserIdExpressions;
+  }
+
   public Set<Expression> getCandidateGroupIdExpressions() {
     return candidateGroupIdExpressions;
   }
 
   public void addCandidateGroupIdExpression(Expression groupId) {
     candidateGroupIdExpressions.add(groupId);
+  }
+  
+  public void setCandidateGroupIdExpressions(Set<Expression> candidateGroupIdExpressions) {
+    this.candidateGroupIdExpressions = candidateGroupIdExpressions;
+  }
+
+  public Map<String, Set<Expression>> getCustomUserIdentityLinkExpressions() {
+    return customUserIdentityLinkExpressions;
+  }
+
+  public void addCustomUserIdentityLinkExpression(String identityLinkType, Set<Expression> idList) {
+  	customUserIdentityLinkExpressions.put(identityLinkType, idList);
+  }
+
+  public Map<String, Set<Expression>> getCustomGroupIdentityLinkExpressions() {
+    return customGroupIdentityLinkExpressions;
+  }
+
+  public void addCustomGroupIdentityLinkExpression(String identityLinkType, Set<Expression> idList) {
+  	customGroupIdentityLinkExpressions.put(identityLinkType, idList);
   }
 
   public Expression getPriorityExpression() {
@@ -146,7 +174,15 @@ public class TaskDefinition implements Serializable {
   public void setDueDateExpression(Expression dueDateExpression) {
     this.dueDateExpression = dueDateExpression;
   }
-  
+
+  public Expression getBusinessCalendarNameExpression() {
+    return businessCalendarNameExpression;
+  }
+
+  public void setBusinessCalendarNameExpression(Expression businessCalendarNameExpression) {
+    this.businessCalendarNameExpression = businessCalendarNameExpression;
+  }
+
   public Expression getCategoryExpression() {
 		return categoryExpression;
 	}
@@ -186,4 +222,12 @@ public class TaskDefinition implements Serializable {
     }
   }
   
+  public Expression getSkipExpression() {
+    return skipExpression;
+  }
+
+  
+  public void setSkipExpression(Expression skipExpression) {
+    this.skipExpression = skipExpression;
+  }
 }

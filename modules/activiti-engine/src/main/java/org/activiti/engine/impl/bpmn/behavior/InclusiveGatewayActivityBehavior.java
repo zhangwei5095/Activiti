@@ -18,7 +18,9 @@ import java.util.List;
 import java.util.Set;
 
 import org.activiti.engine.ActivitiException;
+import org.activiti.engine.delegate.Expression;
 import org.activiti.engine.impl.Condition;
+import org.activiti.engine.impl.bpmn.helper.SkipExpressionUtil;
 import org.activiti.engine.impl.bpmn.parser.BpmnParse;
 import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
 import org.activiti.engine.impl.pvm.PvmActivity;
@@ -45,7 +47,7 @@ public class InclusiveGatewayActivityBehavior extends GatewayActivityBehavior {
     
     execution.inactivate();
     lockConcurrentRoot(execution);
-
+    
     PvmActivity activity = execution.getActivity();
     if (!activeConcurrentExecutionsExist(execution)) {
 
@@ -58,15 +60,22 @@ public class InclusiveGatewayActivityBehavior extends GatewayActivityBehavior {
       List<PvmTransition> transitionsToTake = new ArrayList<PvmTransition>();
 
       for (PvmTransition outgoingTransition : execution.getActivity().getOutgoingTransitions()) {
-        if (defaultSequenceFlow == null || !outgoingTransition.getId().equals(defaultSequenceFlow)) {
-          Condition condition = (Condition) outgoingTransition.getProperty(BpmnParse.PROPERTYNAME_CONDITION);
-          if (condition == null || condition.evaluate(execution)) {
-            transitionsToTake.add(outgoingTransition);
+        
+        Expression skipExpression = outgoingTransition.getSkipExpression();
+        if (!SkipExpressionUtil.isSkipExpressionEnabled(execution, skipExpression)) {
+          if (defaultSequenceFlow == null || !outgoingTransition.getId().equals(defaultSequenceFlow)) {
+            Condition condition = (Condition) outgoingTransition.getProperty(BpmnParse.PROPERTYNAME_CONDITION);
+            if (condition == null || condition.evaluate(outgoingTransition.getId(), execution)) {
+              transitionsToTake.add(outgoingTransition);
+            }
           }
+        }
+        else if (SkipExpressionUtil.shouldSkipFlowElement(execution, skipExpression)){
+          transitionsToTake.add(outgoingTransition);
         }
       }
 
-      if (transitionsToTake.size() > 0) {
+      if (!transitionsToTake.isEmpty()) {
         execution.takeAll(transitionsToTake, joinedExecutions);
 
       } else {
@@ -74,7 +83,8 @@ public class InclusiveGatewayActivityBehavior extends GatewayActivityBehavior {
         if (defaultSequenceFlow != null) {
           PvmTransition defaultTransition = execution.getActivity().findOutgoingTransition(defaultSequenceFlow);
           if (defaultTransition != null) {
-            execution.take(defaultTransition);
+            transitionsToTake.add(defaultTransition);
+            execution.takeAll(transitionsToTake, joinedExecutions);
           } else {
             throw new ActivitiException("Default sequence flow '"
                 + defaultSequenceFlow + "' could not be not found");
@@ -98,7 +108,7 @@ public class InclusiveGatewayActivityBehavior extends GatewayActivityBehavior {
   List<? extends ActivityExecution> getLeaveExecutions(ActivityExecution parent) {
     List<ActivityExecution> executionlist = new ArrayList<ActivityExecution>();
     List<? extends ActivityExecution> subExecutions = parent.getExecutions();
-    if (subExecutions.size() == 0) {
+    if (subExecutions.isEmpty()) {
       executionlist.add(parent);
     } else {
       for (ActivityExecution concurrentExecution : subExecutions) {
@@ -144,9 +154,9 @@ public class InclusiveGatewayActivityBehavior extends GatewayActivityBehavior {
       PvmActivity targetActivity, Set<PvmActivity> visitedActivities) {
 
     // if source has no outputs, it is the end of the process, and its parent process should be checked.
-    if (srcActivity.getOutgoingTransitions().size() == 0) {
+    if (srcActivity.getOutgoingTransitions().isEmpty()) {
       visitedActivities.add(srcActivity);
-      if (srcActivity.getParent() == null || !(srcActivity.getParent() instanceof PvmActivity)) {
+      if (!(srcActivity.getParent() instanceof PvmActivity)) {
         return false;
       }
       srcActivity = (PvmActivity) srcActivity.getParent();
@@ -162,12 +172,11 @@ public class InclusiveGatewayActivityBehavior extends GatewayActivityBehavior {
     visitedActivities.add(srcActivity);
 
     List<PvmTransition> transitionList = srcActivity.getOutgoingTransitions();
-    if (transitionList != null && transitionList.size() > 0) {
+    if (transitionList != null && !transitionList.isEmpty()) {
       for (PvmTransition pvmTransition : transitionList) {
         PvmActivity destinationActivity = pvmTransition.getDestination();
         if (destinationActivity != null && !visitedActivities.contains(destinationActivity)) {
-          boolean reachable = isReachable(destinationActivity, targetActivity,
-              visitedActivities);
+          boolean reachable = isReachable(destinationActivity, targetActivity, visitedActivities);
 
           // If false, we should investigate other paths, and not yet return the
           // result

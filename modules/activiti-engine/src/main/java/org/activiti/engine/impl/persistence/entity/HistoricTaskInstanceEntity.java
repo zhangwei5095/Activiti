@@ -21,6 +21,7 @@ import java.util.Map;
 import org.activiti.engine.ProcessEngineConfiguration;
 import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.impl.context.Context;
+import org.activiti.engine.impl.db.BulkDeleteable;
 import org.activiti.engine.impl.db.PersistentObject;
 
 
@@ -28,14 +29,16 @@ import org.activiti.engine.impl.db.PersistentObject;
  * @author Tom Baeyens
  * @author Joram Barrez
  */
-public class HistoricTaskInstanceEntity extends HistoricScopeInstanceEntity implements HistoricTaskInstance, PersistentObject {
+public class HistoricTaskInstanceEntity extends HistoricScopeInstanceEntity implements HistoricTaskInstance, BulkDeleteable, PersistentObject {
 
   private static final long serialVersionUID = 1L;
   
   protected String executionId;
   protected String name;
+  protected String localizedName;
   protected String parentTaskId;
   protected String description;
+  protected String localizedDescription;
   protected String owner;
   protected String assignee;
   protected String taskDefinitionKey;
@@ -67,6 +70,7 @@ public class HistoricTaskInstanceEntity extends HistoricScopeInstanceEntity impl
     
     this.setPriority(task.getPriority());
     this.setDueDate(task.getDueDate());
+    this.setCategory(task.getCategory());
     
     // Inherit tenant id (if applicable)
     if (task.getTenantId() != null) {
@@ -89,6 +93,7 @@ public class HistoricTaskInstanceEntity extends HistoricScopeInstanceEntity impl
     persistentState.put("formKey", formKey);
     persistentState.put("priority", priority);
     persistentState.put("category", category);
+    persistentState.put("processDefinitionId", processDefinitionId);
     if(parentTaskId != null) {
       persistentState.put("parentTaskId", parentTaskId);
     }
@@ -109,16 +114,30 @@ public class HistoricTaskInstanceEntity extends HistoricScopeInstanceEntity impl
     this.executionId = executionId;
   }
   public String getName() {
-    return name;
+    if (localizedName != null && localizedName.length() > 0) {
+      return localizedName;
+    } else {
+      return name;
+    }
   }
   public void setName(String name) {
     this.name = name;
   }
+  public void setLocalizedName(String name) {
+    this.localizedName = name;
+  }
   public String getDescription() {
-    return description;
+    if (localizedDescription != null && localizedDescription.length() > 0) {
+      return localizedDescription;
+    } else {
+      return description;
+    }
   }
   public void setDescription(String description) {
     this.description = description;
+  }
+  public void setLocalizedDescription(String description) {
+    this.localizedDescription = description;
   }
   public String getAssignee() {
     return assignee;
@@ -131,6 +150,10 @@ public class HistoricTaskInstanceEntity extends HistoricScopeInstanceEntity impl
   }
   public void setTaskDefinitionKey(String taskDefinitionKey) {
     this.taskDefinitionKey = taskDefinitionKey;
+  }
+  @Override
+  public Date getCreateTime() {
+  	return getStartTime(); // For backwards compatible reason implemented with createTime and startTime
   }
   public String getFormKey() {
     return formKey;
@@ -222,4 +245,16 @@ public class HistoricTaskInstanceEntity extends HistoricScopeInstanceEntity impl
   public void setQueryVariables(List<HistoricVariableInstanceEntity> queryVariables) {
     this.queryVariables = queryVariables;
   }
+  
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append("HistoricTaskInstanceEntity[");
+    sb.append("id=").append(id);
+    sb.append(", name=").append(name);
+    sb.append("]");
+    return sb.toString();
+  }
+  
+  
 }

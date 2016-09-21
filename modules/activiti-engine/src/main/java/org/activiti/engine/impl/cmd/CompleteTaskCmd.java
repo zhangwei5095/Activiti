@@ -42,12 +42,14 @@ public class CompleteTaskCmd extends NeedsActiveTaskCmd<Void> {
     if (variables!=null) {
     	if (localScope) {
     		task.setVariablesLocal(variables);
-    	} else {
+    	} else if (task.getExecutionId() != null) {
     		task.setExecutionVariables(variables);
+    	} else {
+    		task.setVariables(variables);
     	}
     }
     
-    task.complete();
+    task.complete(variables, localScope);
     return null;
   }
   

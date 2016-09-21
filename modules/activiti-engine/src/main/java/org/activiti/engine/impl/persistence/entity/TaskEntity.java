@@ -31,6 +31,7 @@ import org.activiti.engine.delegate.TaskListener;
 import org.activiti.engine.delegate.event.ActivitiEventType;
 import org.activiti.engine.delegate.event.impl.ActivitiEventBuilder;
 import org.activiti.engine.impl.context.Context;
+import org.activiti.engine.impl.db.BulkDeleteable;
 import org.activiti.engine.impl.db.DbSqlSession;
 import org.activiti.engine.impl.db.HasRevision;
 import org.activiti.engine.impl.db.PersistentObject;
@@ -51,7 +52,7 @@ import org.apache.commons.lang3.StringUtils;
  * @author Falko Menge
  * @author Tijs Rademakers
  */ 
-public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask, Serializable, PersistentObject, HasRevision {
+public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask, Serializable, PersistentObject, HasRevision, BulkDeleteable {
 
   public static final String DELETE_REASON_COMPLETED = "completed";
   public static final String DELETE_REASON_DELETED = "deleted";
@@ -68,7 +69,9 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
   protected String parentTaskId;
   
   protected String name;
+  protected String localizedName;
   protected String description;
+  protected String localizedDescription;
   protected int priority = DEFAULT_PRIORITY;
   protected Date createTime; // The time when the task has been created
   protected Date dueDate;
@@ -150,6 +153,7 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
     setCreateTime(this.getCreateTime());
     setDueDate(this.getDueDate());
     setParentTaskId(this.getParentTaskId());
+    setFormKey(formKey);
     
     CommandContext commandContext = Context.getCommandContext();
     DbSqlSession dbSqlSession = commandContext.getDbSqlSession();
@@ -170,7 +174,8 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
     return task;
   }
 
-  public void complete() {
+  @SuppressWarnings("rawtypes")
+  public void complete(Map variablesMap, boolean localScope) {
   	
   	if (getDelegationState() != null && getDelegationState().equals(DelegationState.PENDING)) {
   		throw new ActivitiException("A delegated task cannot be completed, but should be resolved instead.");
@@ -184,7 +189,7 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
     
     if(Context.getProcessEngineConfiguration().getEventDispatcher().isEnabled()) {
     	Context.getProcessEngineConfiguration().getEventDispatcher().dispatchEvent(
-    	ActivitiEventBuilder.createEntityEvent(ActivitiEventType.TASK_COMPLETED, this));
+    	    ActivitiEventBuilder.createEntityWithVariablesEvent(ActivitiEventType.TASK_COMPLETED, this, variablesMap, localScope));
     }
  
     Context
@@ -290,7 +295,7 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
     // Dispatch event, if needed
     if(Context.getProcessEngineConfiguration() != null && Context.getProcessEngineConfiguration().getEventDispatcher().isEnabled()) {
   		Context.getProcessEngineConfiguration().getEventDispatcher().dispatchEvent(
-  				ActivitiEventBuilder.createVariableEvent(ActivitiEventType.VARIABLE_CREATED, variableName, value, result.getTaskId(), 
+  				ActivitiEventBuilder.createVariableEvent(ActivitiEventType.VARIABLE_CREATED, variableName, value, result.getType(), result.getTaskId(), 
   						result.getExecutionId(), getProcessInstanceId(), getProcessDefinitionId()));
     }
     return result;
@@ -304,8 +309,8 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
     // Dispatch event, if needed
     if(Context.getProcessEngineConfiguration() != null && Context.getProcessEngineConfiguration().getEventDispatcher().isEnabled()) {
     	Context.getProcessEngineConfiguration().getEventDispatcher().dispatchEvent(
-    			ActivitiEventBuilder.createVariableEvent(ActivitiEventType.VARIABLE_UPDATED, variableInstance.getName(), value, variableInstance.getTaskId(), 
-    					variableInstance.getExecutionId(), getProcessInstanceId(), getProcessDefinitionId()));
+    			ActivitiEventBuilder.createVariableEvent(ActivitiEventType.VARIABLE_UPDATED, variableInstance.getName(), value, variableInstance.getType(), 
+    					variableInstance.getTaskId(), variableInstance.getExecutionId(), getProcessInstanceId(), getProcessDefinitionId()));
     }
   }
 
@@ -360,19 +365,24 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
       .getIdentityLinkEntityManager()
       .findIdentityLinkByTaskUserGroupAndType(id, userId, groupId, type);
     
+    List<String> identityLinkIds = new ArrayList<String>();
     for (IdentityLinkEntity identityLink: identityLinks) {
       Context
         .getCommandContext()
         .getIdentityLinkEntityManager()
         .deleteIdentityLink(identityLink, true);
+      identityLinkIds.add(identityLink.getId());
     }
     
     // fix deleteCandidate() in create TaskListener
     List<IdentityLinkEntity> removedIdentityLinkEntities = new ArrayList<IdentityLinkEntity>();
     for (IdentityLinkEntity identityLinkEntity : this.getIdentityLinks()) {
-      if (IdentityLinkType.CANDIDATE.equals(identityLinkEntity.getType())) {
+      if (IdentityLinkType.CANDIDATE.equals(identityLinkEntity.getType()) && 
+          identityLinkIds.contains(identityLinkEntity.getId()) == false) {
+        
         if ((userId != null && userId.equals(identityLinkEntity.getUserId()))
-          || (groupId != null && identityLinkEntity.getGroupId().equals(groupId))) {
+          || (groupId != null && groupId.equals(identityLinkEntity.getGroupId()))) {
+          
           Context
             .getCommandContext()
             .getIdentityLinkEntityManager()
@@ -489,6 +499,10 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
   public void setNameWithoutCascade(String taskName) {
     this.name = taskName;
   }
+  
+  public void setLocalizedName(String name) {
+    this.localizedName = name;
+  }
 
   public void setDescription(String description) {
     this.description = description;
@@ -504,6 +518,10 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
   /* plain setter for persistence */
   public void setDescriptionWithoutCascade(String description) {
     this.description = description;
+  }
+  
+  public void setLocalizedDescription(String description) {
+    this.localizedDescription = description;
   }
 
   public void setAssignee(String assignee) {
@@ -701,6 +719,10 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
         .recordTaskFormKeyChange(id, formKey);
     }
 	}
+	
+	public void setFormKeyWithoutCascade(String formKey) {
+		this.formKey = formKey;
+	}
 
 	public void fireEvent(String taskEventName) {
     TaskDefinition taskDefinition = getTaskDefinition();
@@ -727,6 +749,33 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
   @Override
   protected boolean isActivityIdUsedForDetails() {
     return false;
+  }
+  
+  // Override from VariableScopeImpl
+  
+  // Overriden to avoid fetching *all* variables (as is the case in the super call)
+  @Override
+  protected VariableInstanceEntity getSpecificVariable(String variableName) {
+		CommandContext commandContext = Context.getCommandContext();
+		if (commandContext == null) {
+			throw new ActivitiException("lazy loading outside command context");
+		}
+		VariableInstanceEntity variableInstance = commandContext
+		    .getVariableInstanceEntityManager()
+		    .findVariableInstanceByTaskAndName(id, variableName);
+
+		return variableInstance;
+	}
+  
+  @Override
+  protected List<VariableInstanceEntity> getSpecificVariables(Collection<String> variableNames) {
+  	CommandContext commandContext = Context.getCommandContext();
+		if (commandContext == null) {
+			throw new ActivitiException("lazy loading outside command context");
+		}
+		return commandContext
+		    .getVariableInstanceEntityManager()
+		    .findVariableInstancesByTaskAndNames(id, variableNames);
   }
 
   // modified getters and setters /////////////////////////////////////////////
@@ -763,11 +812,19 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
   }
 
   public String getName() {
-    return name;
+    if (localizedName != null && localizedName.length() > 0) {
+      return localizedName;
+    } else {
+      return name;
+    }
   }
 
   public String getDescription() {
-    return description;
+    if (localizedDescription != null && localizedDescription.length() > 0) {
+      return localizedDescription;
+    } else {
+      return description;
+    }
   }
   
   public Date getDueDate() {
@@ -870,7 +927,7 @@ public class TaskEntity extends VariableScopeImpl implements Task, DelegateTask,
   public String getParentTaskId() {
     return parentTaskId;
   }
-  public Map<String, VariableInstanceEntity> getVariableInstances() {
+  public Map<String, VariableInstanceEntity> getVariableInstanceEntities() {
     ensureVariableInstancesInitialized();
     return variableInstances;
   }

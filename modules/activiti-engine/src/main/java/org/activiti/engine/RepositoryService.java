@@ -13,7 +13,10 @@
 
 package org.activiti.engine;
 
-import org.activiti.bpmn.converter.BpmnXMLConverter;
+import java.io.InputStream;
+import java.util.Date;
+import java.util.List;
+
 import org.activiti.bpmn.model.BpmnModel;
 import org.activiti.engine.repository.DeploymentBuilder;
 import org.activiti.engine.repository.DeploymentQuery;
@@ -27,16 +30,6 @@ import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.repository.ProcessDefinitionQuery;
 import org.activiti.engine.task.IdentityLink;
 import org.activiti.validation.ValidationError;
-
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Date;
-import java.util.List;
-
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamReader;
-
 
 /** Service providing access to the repository of process definitions and deployments.
  * 
@@ -179,7 +172,7 @@ public interface RepositoryService {
   void suspendProcessDefinitionById(String processDefinitionId, boolean suspendProcessInstances, Date suspensionDate);
   
   /**
-   * Suspends the <strong>all<strong> process definitions with the given key (= id in the bpmn20.xml file). 
+   * Suspends the <strong>all</strong> process definitions with the given key (= id in the bpmn20.xml file).
    * 
    * If a process definition is in state suspended, it will not be possible to start new process instances
    * based on the process definition.
@@ -193,7 +186,7 @@ public interface RepositoryService {
   void suspendProcessDefinitionByKey(String processDefinitionKey);
   
   /**
-   * Suspends the <strong>all<strong> process definitions with the given key (= id in the bpmn20.xml file). 
+   * Suspends the <strong>all</strong> process definitions with the given key (= id in the bpmn20.xml file).
    * 
    * If a process definition is in state suspended, it will not be possible to start new process instances
    * based on the process definition.
@@ -229,7 +222,7 @@ public interface RepositoryService {
    * Activates the process definition with the given id. 
    * 
    * @param activationDate The date on which the process definition will be activated. If null, the
-   *                       process definition is suspended immediately. 
+   *                       process definition is activated immediately. 
    *                       Note: The job executor needs to be active to use this!                                 
    *                                
    * @throws ActivitiObjectNotFoundException if no such processDefinition can be found.
@@ -249,7 +242,7 @@ public interface RepositoryService {
    * Activates the process definition with the given key (=id in the bpmn20.xml file). 
    * 
    * @param activationDate The date on which the process definition will be activated. If null, the
-   *                       process definition is suspended immediately. 
+   *                       process definition is activated immediately. 
    *                       Note: The job executor needs to be active to use this!                                 
    *                                
    * @throws ActivitiObjectNotFoundException if no such processDefinition can be found.
@@ -311,6 +304,11 @@ public interface RepositoryService {
    * using regular Java.
    */
   BpmnModel getBpmnModel(String processDefinitionId);
+  
+  /**
+   * Checks if the process definition is suspended.
+   */
+  boolean isProcessDefinitionSuspended(String processDefinitionId);
 
   /**
    * Provides positions and dimensions of elements in a process diagram as
@@ -328,37 +326,37 @@ public interface RepositoryService {
    * Creates a new model. The model is transient and must be saved using 
    * {@link #saveModel(Model)}.
    */
-  public Model newModel();
+  Model newModel();
 
   /**
    * Saves the model. If the model already existed, the model is updated
    * otherwise a new model is created.
    * @param model model to save, cannot be null.
    */
-  public void saveModel(Model model);
+  void saveModel(Model model);
 
   /**
    * @param modelId id of model to delete, cannot be null. When an id is passed
    * for an unexisting model, this operation is ignored.
    */
-  public void deleteModel(String modelId);
+  void deleteModel(String modelId);
   
   /**
    * Saves the model editor source for a model
    * @param modelId id of model to delete, cannot be null. When an id is passed
    * for an unexisting model, this operation is ignored.
    */
-  public void addModelEditorSource(String modelId, byte[] bytes);
+  void addModelEditorSource(String modelId, byte[] bytes);
   
   /**
    * Saves the model editor source extra for a model
    * @param modelId id of model to delete, cannot be null. When an id is passed
    * for an unexisting model, this operation is ignored.
    */
-  public void addModelEditorSourceExtra(String modelId, byte[] bytes);
+  void addModelEditorSourceExtra(String modelId, byte[] bytes);
   
   /** Query models. */
-  public ModelQuery createModelQuery();
+  ModelQuery createModelQuery();
 
   /**
    * Returns a new {@link org.activiti.engine.query.NativeQuery} for process definitions.
@@ -369,19 +367,19 @@ public interface RepositoryService {
    * Returns the {@link Model}
    * @param modelId id of model
    */
-  public Model getModel(String modelId);
+  Model getModel(String modelId);
   
   /**
    * Returns the model editor source as a byte array
    * @param modelId id of model
    */
-  public byte[] getModelEditorSource(String modelId);
+  byte[] getModelEditorSource(String modelId);
   
   /**
    * Returns the model editor source extra as a byte array
    * @param modelId id of model
    */
-  public byte[] getModelEditorSourceExtra(String modelId);
+  byte[] getModelEditorSourceExtra(String modelId);
   
   /**
    * Authorizes a candidate user for a process definition.
